@@ -23,7 +23,7 @@ Pupervisor - это аналог supervisor для управления проц
 
 ```bash
 # Клонирование репозитория
-git clone https://github.com/zhandos717/gopervisor
+git clone https://github.com/zhandos717/pupervisor
 cd pupervisor
 
 # Установка зависимостей

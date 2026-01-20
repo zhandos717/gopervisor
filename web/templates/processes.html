@@ -29,6 +29,10 @@
                 <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                 <span>Logs</span>
             </a>
+            <a href="/crashes" class="nav-link">
+                <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                <span>History</span>
+            </a>
             <a href="/settings" class="nav-link">
                 <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
                 <span>Settings</span>
@@ -74,6 +78,26 @@
                             <option value="running">Running</option>
                             <option value="stopped">Stopped</option>
                         </select>
+                    </div>
+                </div>
+                <!-- Bulk Actions Bar -->
+                <div id="bulk-actions" class="bulk-actions-bar">
+                    <div class="bulk-select-all">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="select-all-checkbox">
+                            <span>Select All</span>
+                        </label>
+                        <span id="selected-count" class="selected-count">0 selected</span>
+                    </div>
+                    <div class="bulk-buttons">
+                        <button id="restart-selected-btn" class="btn btn-warning" disabled>
+                            <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                            Restart Selected
+                        </button>
+                        <button id="restart-all-btn" class="btn btn-danger">
+                            <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                            Restart All Running
+                        </button>
                     </div>
                 </div>
                 <div id="processes-container" class="card-body process-grid">
@@ -145,35 +169,87 @@ const API = {
 let allProcesses = [];
 let currentLogProcess = null;
 let logRefreshInterval = null;
+let selectedProcesses = new Set();
 
 function renderProcessCard(p) {
     const isRunning = p.status.toLowerCase() === 'running';
     const isStopped = p.status.toLowerCase() === 'stopped';
     const statusClass = isRunning ? 'running' : isStopped ? 'stopped' : '';
+    const argsStr = (p.args && p.args.length) ? p.args.join(' ') : '';
+    const fullCommand = p.command + (argsStr ? ' ' + argsStr : '');
+
+    // Parse CPU percentage for progress bar
+    const cpuValue = p.cpu ? parseFloat(p.cpu) : 0;
+    const cpuWidth = Math.min(cpuValue, 100);
+
+    const isSelected = selectedProcesses.has(p.name);
 
     return `
-        <div class="process-card ${statusClass}">
-            <div class="process-header">
-                <span class="process-status-dot ${statusClass}"></span>
-                <span class="process-name">${p.name}</span>
-                <span class="process-badge ${statusClass}">${p.status}</span>
+        <div class="process-card ${statusClass} ${isSelected ? 'selected' : ''}" data-name="${p.name}">
+            <div class="process-card-top">
+                <div class="process-card-header">
+                    <div class="process-title-row">
+                        <label class="process-checkbox" onclick="event.stopPropagation()">
+                            <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleProcessSelection('${p.name}', this.checked)">
+                        </label>
+                        <span class="process-status-indicator ${statusClass}"></span>
+                        <h3 class="process-name">${p.name}</h3>
+                    </div>
+                    <span class="process-status-badge ${statusClass}">${p.status}</span>
+                </div>
+
+                <div class="process-command-box" title="${fullCommand}">
+                    <code>${p.command}${argsStr ? ' <span class="args">' + argsStr + '</span>' : ''}</code>
+                </div>
+
+                <div class="process-metrics">
+                    <div class="process-metric">
+                        <div class="metric-header">
+                            <span class="metric-label">PID</span>
+                            <span class="metric-value">${isRunning ? p.pid : '-'}</span>
+                        </div>
+                    </div>
+                    <div class="process-metric">
+                        <div class="metric-header">
+                            <span class="metric-label">Uptime</span>
+                            <span class="metric-value">${p.uptime || '-'}</span>
+                        </div>
+                    </div>
+                    <div class="process-metric">
+                        <div class="metric-header">
+                            <span class="metric-label">Memory</span>
+                            <span class="metric-value">${p.memory || '-'}</span>
+                        </div>
+                    </div>
+                    <div class="process-metric has-bar">
+                        <div class="metric-header">
+                            <span class="metric-label">CPU</span>
+                            <span class="metric-value">${p.cpu || '-'}</span>
+                        </div>
+                        ${isRunning ? `<div class="metric-bar"><div class="metric-bar-fill" style="width: ${cpuWidth}%"></div></div>` : ''}
+                    </div>
+                </div>
+
+                ${p.directory ? `
+                <div class="process-directory">
+                    <svg class="icon-sm" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                    <span title="${p.directory}">${p.directory}</span>
+                </div>
+                ` : ''}
             </div>
-            <div class="process-info">
-                <div class="process-info-row"><span class="process-info-label">PID:</span><span class="process-info-value">${p.pid || 'N/A'}</span></div>
-                <div class="process-info-row"><span class="process-info-label">Uptime:</span><span class="process-info-value">${p.uptime || 'N/A'}</span></div>
-            </div>
-            <div class="process-actions">
-                <button onclick="handleStart('${p.name}')" class="btn btn-success" ${isRunning ? 'disabled' : ''} title="Start">
-                    <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+
+            <div class="process-card-actions">
+                <button onclick="handleStart('${p.name}')" class="action-btn start" ${isRunning ? 'disabled' : ''} title="Start">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                 </button>
-                <button onclick="handleStop('${p.name}')" class="btn btn-danger" ${isStopped ? 'disabled' : ''} title="Stop">
-                    <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                <button onclick="handleStop('${p.name}')" class="action-btn stop" ${isStopped ? 'disabled' : ''} title="Stop">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
                 </button>
-                <button onclick="handleRestart('${p.name}')" class="btn btn-warning" title="Restart">
-                    <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                <button onclick="handleRestart('${p.name}')" class="action-btn restart" ${isStopped ? 'disabled' : ''} title="Restart">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
                 </button>
-                <button onclick="showLogs('${p.name}')" class="btn btn-primary" title="View Logs">
-                    <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 19.59V8l-6-6H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c.45 0 .85-.15 1.19-.4l-4.43-4.43c-.8.52-1.74.83-2.76.83-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5c0 1.02-.31 1.96-.83 2.75L20 19.59zM9 13c0 1.66 1.34 3 3 3s3-1.34 3-3-1.34-3-3-3-3 1.34-3 3z"/></svg>
+                <button onclick="showLogs('${p.name}')" class="action-btn logs" title="View Logs">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
                 </button>
             </div>
         </div>
@@ -299,9 +375,149 @@ document.getElementById('log-modal').addEventListener('click', (e) => {
     if (e.target.id === 'log-modal') closeLogModal();
 });
 
+// Bulk selection functions
+function toggleProcessSelection(name, checked) {
+    if (checked) {
+        selectedProcesses.add(name);
+    } else {
+        selectedProcesses.delete(name);
+    }
+    updateSelectionUI();
+}
+
+function updateSelectionUI() {
+    const count = selectedProcesses.size;
+    document.getElementById('selected-count').textContent = `${count} selected`;
+    document.getElementById('restart-selected-btn').disabled = count === 0;
+
+    // Update select-all checkbox state
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    const visibleProcesses = getVisibleProcesses();
+    if (visibleProcesses.length === 0) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+    } else if (visibleProcesses.every(p => selectedProcesses.has(p.name))) {
+        selectAllCheckbox.checked = true;
+        selectAllCheckbox.indeterminate = false;
+    } else if (visibleProcesses.some(p => selectedProcesses.has(p.name))) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = true;
+    } else {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+    }
+
+    // Update card visual states
+    document.querySelectorAll('.process-card').forEach(card => {
+        const name = card.dataset.name;
+        card.classList.toggle('selected', selectedProcesses.has(name));
+    });
+}
+
+function getVisibleProcesses() {
+    const filter = document.getElementById('filter-status').value;
+    const search = document.getElementById('search-input').value.toLowerCase().trim();
+
+    let filtered = allProcesses;
+    if (filter !== 'all') {
+        filtered = filtered.filter(p => p.status.toLowerCase() === filter);
+    }
+    if (search) {
+        filtered = filtered.filter(p => p.name.toLowerCase().includes(search));
+    }
+    return filtered;
+}
+
+function handleSelectAll(checked) {
+    const visibleProcesses = getVisibleProcesses();
+    visibleProcesses.forEach(p => {
+        if (checked) {
+            selectedProcesses.add(p.name);
+        } else {
+            selectedProcesses.delete(p.name);
+        }
+    });
+    applyFilter(); // Re-render to update checkboxes
+    updateSelectionUI();
+}
+
+async function restartSelected() {
+    if (selectedProcesses.size === 0) return;
+
+    const names = Array.from(selectedProcesses);
+    const btn = document.getElementById('restart-selected-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Restarting...';
+
+    try {
+        const res = await fetch('/api/processes/restart-selected', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ names })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            showNotification(`Restarted ${data.restarted} processes` + (data.failed > 0 ? `, ${data.failed} failed` : ''), data.failed > 0 ? 'warning' : 'success');
+        } else {
+            showNotification('Failed to restart processes', 'error');
+        }
+    } catch (err) {
+        showNotification('Error: ' + err.message, 'error');
+    }
+
+    selectedProcesses.clear();
+    await loadProcesses();
+    updateSelectionUI();
+}
+
+async function restartAllRunning() {
+    if (!confirm('Are you sure you want to restart all running processes?')) return;
+
+    const btn = document.getElementById('restart-all-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Restarting...';
+
+    try {
+        const res = await fetch('/api/processes/restart-all', { method: 'POST' });
+
+        if (res.ok) {
+            const data = await res.json();
+            showNotification(`Restarted ${data.restarted} processes` + (data.failed > 0 ? `, ${data.failed} failed` : ''), data.failed > 0 ? 'warning' : 'success');
+        } else {
+            showNotification('Failed to restart processes', 'error');
+        }
+    } catch (err) {
+        showNotification('Error: ' + err.message, 'error');
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg> Restart All Running';
+    await loadProcesses();
+}
+
+function showNotification(message, type = 'info') {
+    // Remove existing notification
+    const existing = document.querySelector('.notification');
+    if (existing) existing.remove();
+
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <span>${message}</span>
+        <button onclick="this.parentElement.remove()">&times;</button>
+    `;
+    document.body.appendChild(notification);
+
+    setTimeout(() => notification.remove(), 5000);
+}
+
 document.getElementById('refresh-btn').addEventListener('click', loadProcesses);
 document.getElementById('filter-status').addEventListener('change', applyFilter);
 document.getElementById('search-input').addEventListener('input', applyFilter);
+document.getElementById('select-all-checkbox').addEventListener('change', (e) => handleSelectAll(e.target.checked));
+document.getElementById('restart-selected-btn').addEventListener('click', restartSelected);
+document.getElementById('restart-all-btn').addEventListener('click', restartAllRunning);
 document.addEventListener('DOMContentLoaded', loadProcesses);
 
 // Auto-refresh every 5 seconds

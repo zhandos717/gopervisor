@@ -7,21 +7,34 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"pupervisor/internal/api"
 	"pupervisor/internal/config"
 	"pupervisor/internal/service"
+	"pupervisor/internal/storage"
 	"pupervisor/web"
 )
 
 func main() {
 	configPath := flag.String("config", "pupervisor.yaml", "Path to process configuration file")
+	dbPath := flag.String("db", "pupervisor.db", "Path to SQLite database file")
 	flag.Parse()
 
 	// Load server config
 	cfg := config.LoadConfig()
+
+	// Initialize storage
+	store, err := storage.New(*dbPath)
+	if err != nil {
+		log.Fatalf("Failed to initialize database at %s: %v", *dbPath, err)
+	}
+	defer store.Close()
+
+	absDbPath, _ := filepath.Abs(*dbPath)
+	log.Printf("Database initialized at %s", absDbPath)
 
 	// Load process configuration
 	procCfg, err := config.LoadProcessConfig(*configPath)
@@ -32,7 +45,7 @@ func main() {
 	}
 
 	// Initialize process manager
-	pm := service.NewProcessManager(procCfg)
+	pm := service.NewProcessManager(procCfg, store)
 
 	// Get embedded filesystems
 	templatesFS := web.GetTemplatesFS()

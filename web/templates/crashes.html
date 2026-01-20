@@ -1,0 +1,372 @@
+{{define "crashes.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pupervisor - Event History</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            <span>Pupervisor</span>
+        </div>
+        <p class="sidebar-subtitle">Control Panel</p>
+        <nav class="sidebar-nav">
+            <a href="/" class="nav-link">
+                <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+                <span>Dashboard</span>
+            </a>
+            <a href="/processes" class="nav-link">
+                <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM7 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM20 3H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM7 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+                <span>Processes</span>
+            </a>
+            <a href="/logs" class="nav-link">
+                <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                <span>Logs</span>
+            </a>
+            <a href="/crashes" class="nav-link active">
+                <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                <span>History</span>
+            </a>
+            <a href="/settings" class="nav-link">
+                <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                <span>Settings</span>
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="header-title">
+                <svg class="icon icon-lg" viewBox="0 0 24 24" fill="var(--color-primary)"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                <span>Event History</span>
+            </h1>
+            <div class="header-actions">
+                <div class="status-online">
+                    <span class="status-dot"></span>
+                    <span>System Online</span>
+                </div>
+                <button id="refresh-btn" class="btn btn-primary btn-icon" title="Refresh">
+                    <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Content -->
+        <div class="content">
+            <!-- Stats Row -->
+            <div class="grid-3" style="gap: 20px; margin-bottom: 24px;">
+                <div class="stat-card">
+                    <div class="stat-icon primary">
+                        <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-value" id="total-events">0</span>
+                        <span class="stat-label">Total Events</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon warning">
+                        <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-value" id="events-today">0</span>
+                        <span class="stat-label">Today</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon success">
+                        <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM7 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+                    </div>
+                    <div class="stat-content">
+                        <span class="stat-value" id="processes-count">0</span>
+                        <span class="stat-label">Processes Tracked</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-2" style="gap: 24px;">
+                <!-- Process Overview -->
+                <section class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <svg class="icon" viewBox="0 0 24 24" fill="var(--color-primary)"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+                            Process Overview
+                        </h2>
+                    </div>
+                    <div id="process-overview" class="card-body">
+                        <div class="empty-state">
+                            <div class="spinner"></div>
+                            <p>Loading...</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Event Timeline -->
+                <section class="card">
+                    <div class="card-header" style="flex-wrap: wrap; gap: 12px;">
+                        <h2 class="card-title">
+                            <svg class="icon" viewBox="0 0 24 24" fill="var(--color-primary)"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                            Recent Events
+                        </h2>
+                        <select id="filter-process" class="form-select" style="width: auto; padding: 6px 12px; font-size: 13px;">
+                            <option value="all">All Processes</option>
+                        </select>
+                    </div>
+                    <div id="events-container" class="card-body" style="max-height: 400px; overflow-y: auto;">
+                        <div class="empty-state">
+                            <div class="spinner"></div>
+                            <p>Loading events...</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Event Detail Modal -->
+<div id="event-modal" class="modal-overlay">
+    <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <svg class="icon" viewBox="0 0 24 24" fill="var(--color-primary)"><path d="M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM11 9h2V7h-2v2z"/></svg>
+                <span id="modal-title">Event Details</span>
+            </h3>
+            <button onclick="closeModal()" class="modal-close">&times;</button>
+        </div>
+        <div id="event-detail" class="modal-body" style="max-height: 450px; overflow-y: auto;">
+        </div>
+    </div>
+</div>
+
+<script>
+const API = {
+    async getEvents() {
+        const res = await fetch('/api/crashes');
+        return res.ok ? res.json() : [];
+    },
+    async getStats() {
+        const res = await fetch('/api/crashes/stats');
+        return res.ok ? res.json() : {};
+    }
+};
+
+let allEvents = [];
+
+function formatDate(dateStr) {
+    if (!dateStr) return 'N/A';
+    const d = new Date(dateStr);
+    return d.toLocaleString();
+}
+
+function formatRelativeTime(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diff = now - d;
+    const mins = Math.floor(diff / 60000);
+    const hours = Math.floor(mins / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) return `${days}d ago`;
+    if (hours > 0) return `${hours}h ago`;
+    if (mins > 0) return `${mins}m ago`;
+    return 'just now';
+}
+
+function isToday(dateStr) {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    const today = new Date();
+    return d.toDateString() === today.toDateString();
+}
+
+function renderProcessOverview(stats) {
+    const container = document.getElementById('process-overview');
+    const entries = Object.entries(stats);
+
+    if (entries.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state-friendly">
+                <div class="empty-icon">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                </div>
+                <h3>All Clear!</h3>
+                <p>No process restarts recorded yet. Your system is running smoothly.</p>
+            </div>
+        `;
+        return;
+    }
+
+    entries.sort((a, b) => b[1] - a[1]);
+    const maxCount = Math.max(...entries.map(e => e[1]));
+
+    container.innerHTML = `
+        <div class="process-bars">
+            ${entries.map(([name, count]) => `
+                <div class="process-bar-item">
+                    <div class="process-bar-info">
+                        <span class="process-bar-name">${name}</span>
+                        <span class="process-bar-count">${count}</span>
+                    </div>
+                    <div class="process-bar-track">
+                        <div class="process-bar-fill" style="width: ${(count / maxCount) * 100}%"></div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+
+    // Update filter
+    const filter = document.getElementById('filter-process');
+    filter.innerHTML = '<option value="all">All Processes</option>' +
+        entries.map(([name]) => `<option value="${name}">${name}</option>`).join('');
+}
+
+function renderEventItem(event) {
+    return `
+        <div class="event-item" onclick="showEventDetail(${event.id})">
+            <div class="event-indicator"></div>
+            <div class="event-content">
+                <div class="event-header">
+                    <span class="event-process">${event.process_name}</span>
+                    <span class="event-time">${formatRelativeTime(event.crashed_at)}</span>
+                </div>
+                <div class="event-meta">
+                    <span class="event-tag">Exit: ${event.exit_code}</span>
+                    ${event.signal ? `<span class="event-tag">Signal: ${event.signal}</span>` : ''}
+                    ${event.uptime ? `<span class="event-tag">Uptime: ${event.uptime}</span>` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderEvents(events) {
+    const container = document.getElementById('events-container');
+
+    if (!events || events.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state-friendly">
+                <div class="empty-icon">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                </div>
+                <h3>No Events</h3>
+                <p>Everything is running as expected!</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = `<div class="event-timeline">${events.map(renderEventItem).join('')}</div>`;
+}
+
+function showEventDetail(eventId) {
+    const event = allEvents.find(e => e.id === eventId);
+    if (!event) return;
+
+    document.getElementById('modal-title').textContent = `${event.process_name}`;
+    document.getElementById('event-detail').innerHTML = `
+        <div class="event-detail-content">
+            <div class="event-detail-row">
+                <span class="event-detail-label">Process</span>
+                <span class="event-detail-value">${event.process_name}</span>
+            </div>
+            <div class="event-detail-row">
+                <span class="event-detail-label">Event Time</span>
+                <span class="event-detail-value">${formatDate(event.crashed_at)}</span>
+            </div>
+            <div class="event-detail-row">
+                <span class="event-detail-label">Started At</span>
+                <span class="event-detail-value">${formatDate(event.started_at)}</span>
+            </div>
+            <div class="event-detail-row">
+                <span class="event-detail-label">Uptime</span>
+                <span class="event-detail-value">${event.uptime || '-'}</span>
+            </div>
+            <div class="event-detail-row">
+                <span class="event-detail-label">Exit Code</span>
+                <span class="event-detail-value ${event.exit_code !== 0 ? 'text-warning' : ''}">${event.exit_code}</span>
+            </div>
+            ${event.signal ? `
+            <div class="event-detail-row">
+                <span class="event-detail-label">Signal</span>
+                <span class="event-detail-value">${event.signal}</span>
+            </div>
+            ` : ''}
+            ${event.error_message ? `
+            <div class="event-detail-section">
+                <span class="event-detail-label">Error</span>
+                <pre class="event-detail-code">${escapeHtml(event.error_message)}</pre>
+            </div>
+            ` : ''}
+            ${event.stderr ? `
+            <div class="event-detail-section">
+                <span class="event-detail-label">Output</span>
+                <pre class="event-detail-code">${escapeHtml(event.stderr)}</pre>
+            </div>
+            ` : ''}
+        </div>
+    `;
+
+    document.getElementById('event-modal').classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('event-modal').classList.remove('active');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function loadData() {
+    const [events, stats] = await Promise.all([
+        API.getEvents(),
+        API.getStats()
+    ]);
+
+    allEvents = events || [];
+
+    document.getElementById('total-events').textContent = allEvents.length;
+    document.getElementById('events-today').textContent = allEvents.filter(e => isToday(e.crashed_at)).length;
+    document.getElementById('processes-count').textContent = Object.keys(stats || {}).length;
+
+    renderProcessOverview(stats || {});
+    applyFilter();
+}
+
+function applyFilter() {
+    const filter = document.getElementById('filter-process').value;
+    let filtered = allEvents;
+
+    if (filter !== 'all') {
+        filtered = allEvents.filter(e => e.process_name === filter);
+    }
+
+    renderEvents(filtered);
+}
+
+document.getElementById('refresh-btn').addEventListener('click', loadData);
+document.getElementById('filter-process').addEventListener('change', applyFilter);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+document.getElementById('event-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'event-modal') closeModal();
+});
+
+document.addEventListener('DOMContentLoaded', loadData);
+setInterval(loadData, 30000);
+</script>
+</body>
+</html>
+{{end}}

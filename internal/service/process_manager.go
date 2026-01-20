@@ -16,6 +16,7 @@ import (
 
 	"pupervisor/internal/config"
 	"pupervisor/internal/models"
+	"pupervisor/internal/storage"
 )
 
 var (
@@ -25,19 +26,76 @@ var (
 )
 
 type ProcessState struct {
-	Config    config.ProcessConfig
-	Cmd       *exec.Cmd
-	Status    string
-	Pid       int
-	StartTime time.Time
-	ExitCode  int
-	cancel    context.CancelFunc
+	Config       config.ProcessConfig
+	Cmd          *exec.Cmd
+	Status       string
+	Pid          int
+	StartTime    time.Time
+	ExitCode     int
+	cancel       context.CancelFunc
+	outputBuffer *OutputBuffer
+}
+
+type OutputBuffer struct {
+	mu      sync.RWMutex
+	stdout  []string
+	stderr  []string
+	maxSize int
+}
+
+func NewOutputBuffer(maxSize int) *OutputBuffer {
+	return &OutputBuffer{
+		stdout:  make([]string, 0),
+		stderr:  make([]string, 0),
+		maxSize: maxSize,
+	}
+}
+
+func (ob *OutputBuffer) AddStdout(line string) {
+	ob.mu.Lock()
+	defer ob.mu.Unlock()
+	ob.stdout = append(ob.stdout, line)
+	if len(ob.stdout) > ob.maxSize {
+		ob.stdout = ob.stdout[len(ob.stdout)-ob.maxSize:]
+	}
+}
+
+func (ob *OutputBuffer) AddStderr(line string) {
+	ob.mu.Lock()
+	defer ob.mu.Unlock()
+	ob.stderr = append(ob.stderr, line)
+	if len(ob.stderr) > ob.maxSize {
+		ob.stderr = ob.stderr[len(ob.stderr)-ob.maxSize:]
+	}
+}
+
+func (ob *OutputBuffer) GetStdout() string {
+	ob.mu.RLock()
+	defer ob.mu.RUnlock()
+	return strings.Join(ob.stdout, "\n")
+}
+
+func (ob *OutputBuffer) GetStderr() string {
+	ob.mu.RLock()
+	defer ob.mu.RUnlock()
+	return strings.Join(ob.stderr, "\n")
+}
+
+func (ob *OutputBuffer) GetLastStderr(n int) string {
+	ob.mu.RLock()
+	defer ob.mu.RUnlock()
+	start := 0
+	if len(ob.stderr) > n {
+		start = len(ob.stderr) - n
+	}
+	return strings.Join(ob.stderr[start:], "\n")
 }
 
 type ProcessManager struct {
 	mu        sync.RWMutex
 	processes map[string]*ProcessState
 	logs      *LogBuffer
+	storage   *storage.Storage
 }
 
 type LogBuffer struct {
@@ -104,10 +162,11 @@ func (lb *LogBuffer) GetByLevel(level string, n int) []models.LogEntry {
 	return filtered[start:]
 }
 
-func NewProcessManager(cfg *config.SupervisorConfig) *ProcessManager {
+func NewProcessManager(cfg *config.SupervisorConfig, store *storage.Storage) *ProcessManager {
 	pm := &ProcessManager{
 		processes: make(map[string]*ProcessState),
 		logs:      NewLogBuffer(1000),
+		storage:   store,
 	}
 
 	for _, procCfg := range cfg.Processes {
@@ -118,6 +177,10 @@ func NewProcessManager(cfg *config.SupervisorConfig) *ProcessManager {
 	}
 
 	return pm
+}
+
+func (pm *ProcessManager) GetStorage() *storage.Storage {
+	return pm.storage
 }
 
 func (pm *ProcessManager) log(level, message string, processName string) {
@@ -181,6 +244,7 @@ func (pm *ProcessManager) StartProcess(name string) error {
 	state.Pid = cmd.Process.Pid
 	state.StartTime = time.Now()
 	state.ExitCode = 0
+	state.outputBuffer = NewOutputBuffer(500) // Keep last 500 lines
 
 	pm.log("info", fmt.Sprintf("Process %s started with PID %d", name, state.Pid), name)
 
@@ -188,7 +252,9 @@ func (pm *ProcessManager) StartProcess(name string) error {
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			pm.log("info", fmt.Sprintf("[%s] %s", name, scanner.Text()), name)
+			line := scanner.Text()
+			state.outputBuffer.AddStdout(line)
+			pm.log("info", fmt.Sprintf("[%s] %s", name, line), name)
 		}
 	}()
 
@@ -196,7 +262,9 @@ func (pm *ProcessManager) StartProcess(name string) error {
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			pm.log("error", fmt.Sprintf("[%s] %s", name, scanner.Text()), name)
+			line := scanner.Text()
+			state.outputBuffer.AddStderr(line)
+			pm.log("error", fmt.Sprintf("[%s] %s", name, line), name)
 		}
 	}()
 
@@ -211,13 +279,21 @@ func (pm *ProcessManager) monitorProcess(name string, state *ProcessState) {
 		return
 	}
 
+	startTime := state.StartTime
 	err := state.Cmd.Wait()
+	crashTime := time.Now()
 
 	pm.mu.Lock()
-	defer pm.mu.Unlock()
 
+	exitCode := 0
 	if state.Cmd.ProcessState != nil {
-		state.ExitCode = state.Cmd.ProcessState.ExitCode()
+		exitCode = state.Cmd.ProcessState.ExitCode()
+	}
+	state.ExitCode = exitCode
+
+	// Save crash info if process exited abnormally
+	if err != nil || exitCode != 0 {
+		pm.saveCrashRecord(name, state, startTime, crashTime, err)
 	}
 
 	state.Status = "stopped"
@@ -239,6 +315,51 @@ func (pm *ProcessManager) monitorProcess(name string, state *ProcessState) {
 			pm.mu.Lock()
 		default:
 		}
+	}
+
+	pm.mu.Unlock()
+}
+
+func (pm *ProcessManager) saveCrashRecord(name string, state *ProcessState, startTime, crashTime time.Time, err error) {
+	if pm.storage == nil {
+		return
+	}
+
+	var errMsg string
+	if err != nil {
+		errMsg = err.Error()
+	}
+
+	var stdout, stderr string
+	if state.outputBuffer != nil {
+		stdout = state.outputBuffer.GetStdout()
+		stderr = state.outputBuffer.GetLastStderr(50) // Last 50 lines of stderr
+	}
+
+	// Extract signal if killed by signal
+	signal := ""
+	if state.Cmd != nil && state.Cmd.ProcessState != nil {
+		if ws, ok := state.Cmd.ProcessState.Sys().(syscall.WaitStatus); ok {
+			if ws.Signaled() {
+				signal = ws.Signal().String()
+			}
+		}
+	}
+
+	crash := &storage.CrashRecord{
+		ProcessName: name,
+		ExitCode:    state.ExitCode,
+		Signal:      signal,
+		ErrorMsg:    errMsg,
+		Stdout:      stdout,
+		Stderr:      stderr,
+		StartedAt:   startTime,
+		CrashedAt:   crashTime,
+		Uptime:      formatDuration(crashTime.Sub(startTime)),
+	}
+
+	if saveErr := pm.storage.SaveCrash(crash); saveErr != nil {
+		pm.log("error", fmt.Sprintf("Failed to save crash record for %s: %v", name, saveErr), name)
 	}
 }
 
@@ -339,12 +460,15 @@ func (pm *ProcessManager) GetProcesses() []models.Process {
 		}
 
 		result = append(result, models.Process{
-			Name:   name,
-			Status: state.Status,
-			Pid:    state.Pid,
-			Uptime: uptime,
-			Memory: memory,
-			CPU:    cpu,
+			Name:      name,
+			Status:    state.Status,
+			Pid:       state.Pid,
+			Uptime:    uptime,
+			Memory:    memory,
+			CPU:       cpu,
+			Command:   state.Config.Command,
+			Args:      state.Config.Args,
+			Directory: state.Config.Directory,
 		})
 	}
 
@@ -373,12 +497,15 @@ func (pm *ProcessManager) GetProcess(name string) (models.Process, bool) {
 	}
 
 	return models.Process{
-		Name:   name,
-		Status: state.Status,
-		Pid:    state.Pid,
-		Uptime: uptime,
-		Memory: memory,
-		CPU:    cpu,
+		Name:      name,
+		Status:    state.Status,
+		Pid:       state.Pid,
+		Uptime:    uptime,
+		Memory:    memory,
+		CPU:       cpu,
+		Command:   state.Config.Command,
+		Args:      state.Config.Args,
+		Directory: state.Config.Directory,
 	}, true
 }
 
@@ -435,6 +562,70 @@ func (pm *ProcessManager) StopAll() {
 			pm.log("error", fmt.Sprintf("Failed to stop %s: %v", name, err), name)
 		}
 	}
+}
+
+func (pm *ProcessManager) RestartAll() (restarted int, failed int) {
+	pm.mu.RLock()
+	var toRestart []string
+	for name, state := range pm.processes {
+		if state.Status == "running" {
+			toRestart = append(toRestart, name)
+		}
+	}
+	pm.mu.RUnlock()
+
+	pm.log("info", fmt.Sprintf("Bulk restart initiated for %d processes", len(toRestart)), "")
+
+	for _, name := range toRestart {
+		pm.log("info", fmt.Sprintf("Restarting process %s", name), name)
+		if err := pm.RestartProcess(name); err != nil {
+			pm.log("error", fmt.Sprintf("Failed to restart %s: %v", name, err), name)
+			failed++
+		} else {
+			restarted++
+		}
+	}
+
+	pm.log("info", fmt.Sprintf("Bulk restart completed: %d restarted, %d failed", restarted, failed), "")
+	return restarted, failed
+}
+
+func (pm *ProcessManager) RestartSelected(names []string) (restarted int, failed int) {
+	pm.log("info", fmt.Sprintf("Selective restart initiated for %d processes", len(names)), "")
+
+	for _, name := range names {
+		pm.mu.RLock()
+		state, ok := pm.processes[name]
+		pm.mu.RUnlock()
+
+		if !ok {
+			pm.log("warning", fmt.Sprintf("Process %s not found, skipping", name), name)
+			failed++
+			continue
+		}
+
+		if state.Status != "running" {
+			pm.log("info", fmt.Sprintf("Process %s is not running, starting", name), name)
+			if err := pm.StartProcess(name); err != nil {
+				pm.log("error", fmt.Sprintf("Failed to start %s: %v", name, err), name)
+				failed++
+			} else {
+				restarted++
+			}
+			continue
+		}
+
+		pm.log("info", fmt.Sprintf("Restarting process %s", name), name)
+		if err := pm.RestartProcess(name); err != nil {
+			pm.log("error", fmt.Sprintf("Failed to restart %s: %v", name, err), name)
+			failed++
+		} else {
+			restarted++
+		}
+	}
+
+	pm.log("info", fmt.Sprintf("Selective restart completed: %d restarted, %d failed", restarted, failed), "")
+	return restarted, failed
 }
 
 func formatDuration(d time.Duration) string {

@@ -18,7 +18,7 @@ type Router struct {
 func NewRouter(svc *service.ProcessService, templatesFS, staticFS fs.FS) (*Router, error) {
 	r := mux.NewRouter()
 
-	tmplHandler, err := handlers.NewTemplateHandler(templatesFS, svc)
+	tmplHandler, err := handlers.NewTemplateHandler(templatesFS)
 	if err != nil {
 		return nil, err
 	}
@@ -29,11 +29,11 @@ func NewRouter(svc *service.ProcessService, templatesFS, staticFS fs.FS) (*Route
 	r.HandleFunc("/health", handlers.HealthCheck).Methods(http.MethodGet)
 	r.HandleFunc("/ready", handlers.ReadyCheck).Methods(http.MethodGet)
 
-	// Web UI routes using templates
-	r.HandleFunc("/", tmplHandler.ServeTemplate("dashboard", "dashboard", "Dashboard")).Methods(http.MethodGet)
-	r.HandleFunc("/processes", tmplHandler.ServeTemplate("processes", "processes", "Process Management")).Methods(http.MethodGet)
-	r.HandleFunc("/logs", tmplHandler.ServeTemplate("logs", "logs", "System Logs")).Methods(http.MethodGet)
-	r.HandleFunc("/settings", tmplHandler.ServeTemplate("settings", "settings", "System Settings")).Methods(http.MethodGet)
+	// Web UI routes - serve static HTML pages that load data via API
+	r.HandleFunc("/", tmplHandler.ServeTemplate("dashboard")).Methods(http.MethodGet)
+	r.HandleFunc("/processes", tmplHandler.ServeTemplate("processes")).Methods(http.MethodGet)
+	r.HandleFunc("/logs", tmplHandler.ServeTemplate("logs")).Methods(http.MethodGet)
+	r.HandleFunc("/settings", tmplHandler.ServeTemplate("settings")).Methods(http.MethodGet)
 
 	// Serve static files (CSS, JS, images, etc.)
 	staticHandler := http.FileServer(http.FS(staticFS))

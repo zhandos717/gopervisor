@@ -1,41 +1,26 @@
-version: '3.8'
-
 services:
   pupervisor:
-    build: .
-    container_name: pupervisor-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pupervisor
     ports:
       - "8080:8080"
-    environment:
-      - SERVER_ADDRESS=:8080
-      - LOG_LEVEL=info
-      - DEBUG=false
-    env_file:
-      - .env
     volumes:
-      - ./web:/app/web
+      # Mount config file
+      - ./pupervisor.yaml:/app/config/pupervisor.yaml:ro
+      # Persist SQLite database
+      - pupervisor_data:/app/data
+    environment:
+      - TZ=UTC
     restart: unless-stopped
-    
-  # Опциональный сервис базы данных (PostgreSQL)
-  # database:
-  #   image: postgres:15-alpine
-  #   container_name: pupervisor-db
-  #   environment:
-  #     POSTGRES_DB: pupervisor
-  #     POSTGRES_USER: user
-  #     POSTGRES_PASSWORD: password
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
- #   ports:
-  #     - "5432:5432"
-  #   restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
 
-  # Опциональный сервис кеширования (Redis)
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: pupervisor-redis
-  #   ports:
-  #     - "6379:6379"
-  #   volumes:
-  #     - redis_data:/data
-  #   restart: unless-stopped
+volumes:
+  pupervisor_data:
+    driver: local

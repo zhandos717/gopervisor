@@ -1,48 +1,52 @@
-# Используем официальный образ Go для сборки
+# Build stage
 FROM golang:1.24-alpine AS builder
 
-# Устанавливаем зависимости для сборки
-RUN apk add --no-cache git
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates tzdata
 
-# Устанавливаем рабочую директорию в контейнере
 WORKDIR /app
 
-# Копируем файлы зависимостей
+# Copy dependency files first for caching
 COPY go.mod go.sum ./
-
-# Загружаем зависимости
 RUN go mod download
 
-# Копируем исходный код
+# Copy source code
 COPY . .
 
-# Собираем бинарный файл
-RUN CGO_ENABLED=0 GOOS=linux go build -o main cmd/server/main.go
+# Build binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s" \
+    -o pupervisor \
+    ./cmd/server
 
-# Второй этап - создание минимального образа для запуска
-FROM alpine:latest
+# Runtime stage
+FROM alpine:3.19
 
-# Устанавливаем зависимости для работы приложения
-RUN apk --no-cache add ca-certificates
+# Install runtime dependencies
+RUN apk --no-cache add ca-certificates tzdata
 
-# Создаем пользователя для запуска приложения
-RUN addgroup -g 65532 nonroot && adduser -D -u 6532 -G nonroot nonroot
+# Create non-root user
+RUN addgroup -g 65532 -S appgroup && \
+    adduser -u 65532 -S appuser -G appgroup
 
-# Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Копируем бинарный файл из builder-контейнера
-COPY --from=builder /app/main .
+# Copy binary from builder
+COPY --from=builder /app/pupervisor .
 
-# Копируем веб-файлы
-COPY web/ ./web/
+# Create data directory for SQLite
+RUN mkdir -p /app/data && chown -R appuser:appgroup /app
 
-# Устанавливаем права доступа
-RUN chown -R nonroot:nonroot /app
-USER nonroot
+# Switch to non-root user
+USER appuser
 
-# Открываем порт
+# Expose port
 EXPOSE 8080
 
-# Команда запуска
-CMD ["./main"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+# Default command
+ENTRYPOINT ["./pupervisor"]
+CMD ["--config", "/app/config/pupervisor.yaml", "--db", "/app/data/pupervisor.db"]

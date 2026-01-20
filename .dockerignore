@@ -1,0 +1,45 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+pupervisor
+main
+
+# Test files
+*_test.go
+*.test
+
+# Database files
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Documentation
+*.md
+LICENSE
+
+# Docker files (no need to copy into build context)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Misc
+.env
+.env.*
+*.log
+tmp/
+pupervisor.db
+pupervisor.db-shm
+pupervisor.db-wal

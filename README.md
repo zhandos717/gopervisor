@@ -1,144 +1,269 @@
-# Pupervisor
+<p align="center">
+  <h1 align="center">Pupervisor</h1>
+  <p align="center">
+    Lightweight process manager with modern web UI, written in Go
+    <br />
+    <a href="#features">Features</a>
+    ·
+    <a href="#installation">Installation</a>
+    ·
+    <a href="#screenshots">Screenshots</a>
+    ·
+    <a href="#api-reference">API</a>
+  </p>
+</p>
 
-Легковесный менеджер процессов с веб-интерфейсом, написанный на Go.
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="Dashboard" width="800">
+</p>
 
-## Описание
+## About
 
-Pupervisor - это аналог supervisor для управления процессами с современным веб-интерфейсом. Позволяет запускать, останавливать, перезапускать процессы и просматривать их логи в реальном времени. Все статические файлы встроены в бинарник - для работы нужен только один исполняемый файл.
+Pupervisor is a supervisor-like process manager with a modern web interface. It allows you to start, stop, restart processes and view their logs in real-time. All static files are embedded into the binary - you only need one executable file to run.
 
-## Возможности
+## Features
 
-- **Dashboard** - обзор состояния системы с графиками (распределение статусов, активность за последний час)
-- **Управление процессами** - запуск, остановка, перезапуск с просмотром stdout/stderr
-- **Поиск и фильтрация** - быстрый поиск процессов по имени и фильтрация по статусу
-- **Логи** - просмотр системных и worker логов с фильтрацией по уровню
-- **Настройки** - конфигурация через веб-интерфейс
-- **Без внешних зависимостей** - кастомные CSS и JS, без CDN
+- **Dashboard** — System overview with charts (status distribution, hourly activity)
+- **Process Management** — Start, stop, restart with live stdout/stderr viewing
+- **Bulk Operations** — Restart selected or all running processes at once
+- **Search & Filter** — Quick process search by name and status filtering
+- **Logs** — Worker and system logs with level filtering and worker badges
+- **Crash History** — Track process crashes with exit codes and stderr output
+- **SQLite Storage** — Persistent storage for crashes and settings
+- **Settings** — Web-based configuration
+- **No External Dependencies** — Custom CSS/JS, no CDN required
+- **Single Binary** — All assets embedded, just run and go
 
-## Требования
+## Screenshots
 
-- Go 1.21 или выше
+<details>
+<summary>📊 Dashboard</summary>
+<br>
+<img src="docs/images/dashboard.png" alt="Dashboard" width="700">
+<p>System overview with statistics, status distribution chart, activity graph, process list and recent logs.</p>
+</details>
 
-## Установка и запуск
+<details>
+<summary>⚙️ Process Management</summary>
+<br>
+<img src="docs/images/processes.png" alt="Processes" width="700">
+<p>Process cards with metrics (PID, Uptime, Memory, CPU), bulk selection and restart functionality.</p>
+</details>
+
+<details>
+<summary>📋 Logs</summary>
+<br>
+<img src="docs/images/logs.png" alt="Logs" width="700">
+<p>Worker and system logs with color-coded worker badges, level filtering, and worker filtering.</p>
+</details>
+
+<details>
+<summary>🖥️ Process Output</summary>
+<br>
+<img src="docs/images/process-output.png" alt="Process Output" width="700">
+<p>Real-time process output viewing with auto-scroll.</p>
+</details>
+
+## Installation
+
+### Requirements
+
+- Go 1.21 or higher
+
+### From Source
 
 ```bash
-# Клонирование репозитория
+# Clone the repository
 git clone https://github.com/zhandos717/pupervisor
 cd pupervisor
 
-# Установка зависимостей
-go mod tidy
+# Build
+make build
 
-# Запуск
-go run cmd/server/main.go
+# Run
+./pupervisor --config pupervisor.yaml
 ```
 
-Откройте браузер: http://localhost:8080
-
-### Сборка бинарника
+### Using Go Install
 
 ```bash
-go build -o pupervisor cmd/server/main.go
-./pupervisor
+go install github.com/zhandos717/pupervisor/cmd/server@latest
 ```
 
-## Структура проекта
+### Docker
+
+```bash
+# Using docker-compose
+docker-compose up -d
+
+# Or build manually
+docker build -t pupervisor .
+docker run -d -p 8080:8080 -v ./pupervisor.yaml:/app/config/pupervisor.yaml pupervisor
+```
+
+Open your browser: http://localhost:8080
+
+## Configuration
+
+Create a `pupervisor.yaml` file:
+
+```yaml
+processes:
+  - name: my-worker
+    command: python
+    args:
+      - worker.py
+    directory: /app
+    environment:
+      PYTHONUNBUFFERED: "1"
+    autostart: true
+    autorestart: true
+    startsecs: 3
+    stopsignal: SIGTERM
+    stoptimeout: 10
+
+  - name: queue-processor
+    command: php
+    args:
+      - artisan
+      - queue:work
+      - --sleep=3
+    directory: /var/www/app
+    autostart: true
+    autorestart: true
+```
+
+### Process Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `name` | string | required | Process name |
+| `command` | string | required | Command to execute |
+| `args` | []string | [] | Command arguments |
+| `directory` | string | "" | Working directory |
+| `environment` | map | {} | Environment variables |
+| `autostart` | bool | false | Start on supervisor launch |
+| `autorestart` | bool | false | Restart on exit |
+| `startsecs` | int | 1 | Seconds before considered started |
+| `stopsignal` | string | SIGTERM | Signal to stop (SIGTERM, SIGINT, SIGKILL) |
+| `stoptimeout` | int | 10 | Seconds to wait before SIGKILL |
+
+## API Reference
+
+### Processes
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/processes` | List all processes |
+| POST | `/api/processes/{name}/start` | Start process |
+| POST | `/api/processes/{name}/stop` | Stop process |
+| POST | `/api/processes/{name}/restart` | Restart process |
+| POST | `/api/processes/restart-all` | Restart all running |
+| POST | `/api/processes/restart-selected` | Restart selected (JSON body) |
+
+### Logs
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/logs` | All logs |
+| GET | `/api/logs/worker` | Worker output logs |
+| GET | `/api/logs/system` | System event logs |
+| GET | `/api/logs/worker/{name}` | Logs for specific worker |
+
+### Crashes
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/crashes` | Crash history |
+| GET | `/api/crashes/stats` | Crash statistics |
+| GET | `/api/crashes/{name}` | Crashes for process |
+
+### Settings & Health
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/settings` | Get settings |
+| POST | `/api/settings` | Update settings |
+| GET | `/health` | Health check |
+| GET | `/ready` | Readiness check |
+
+## Project Structure
 
 ```
 pupervisor/
 ├── cmd/
 │   └── server/
-│       └── main.go                 # Точка входа
+│       └── main.go              # Application entry point
 ├── internal/
 │   ├── api/
-│   │   └── router.go               # HTTP маршрутизация
+│   │   └── router.go            # HTTP routing
 │   ├── config/
-│   │   ├── config.go               # Конфигурация приложения
-│   │   └── process_config.go       # Конфигурация процессов
+│   │   ├── config.go            # App configuration
+│   │   └── process_config.go    # Process configuration
 │   ├── handlers/
-│   │   ├── health_handler.go       # Health check endpoint
-│   │   ├── process_handler.go      # API для управления процессами
-│   │   └── template_handler.go     # Рендеринг HTML страниц
+│   │   ├── health_handler.go    # Health endpoints
+│   │   ├── process_handler.go   # Process API handlers
+│   │   └── template_handler.go  # HTML rendering
 │   ├── middleware/
-│   │   └── logging.go              # Логирование запросов
+│   │   └── logging.go           # Request logging
 │   ├── models/
-│   │   └── process.go              # Модели данных
-│   └── service/
-│       └── process_manager.go      # Бизнес-логика управления процессами
+│   │   └── process.go           # Data models
+│   ├── service/
+│   │   └── process_manager.go   # Process management logic
+│   └── storage/
+│       └── storage.go           # SQLite storage
 ├── web/
 │   ├── css/
-│   │   └── style.css               # Стили (кастомные, без CDN)
-│   ├── js/
-│   │   ├── api.js                  # API клиент
-│   │   ├── display.js              # Функции отображения
-│   │   ├── main.js                 # Инициализация
-│   │   └── process-actions.js      # Действия с процессами
+│   │   └── style.css            # Styles (no CDN)
 │   ├── templates/
-│   │   ├── dashboard.html          # Главная страница с графиками
-│   │   ├── processes.html          # Управление процессами
-│   │   ├── logs.html               # Просмотр логов
-│   │   └── settings.html           # Настройки
-│   ├── embed.go                    # Встраивание статики в бинарник
-│   └── index.html                  # Базовый шаблон
-├── go.mod
-├── go.sum
+│   │   ├── dashboard.html
+│   │   ├── processes.html
+│   │   ├── logs.html
+│   │   ├── crashes.html
+│   │   └── settings.html
+│   └── embed.go                 # Static file embedding
+├── docs/
+│   └── images/                  # Screenshots
+├── Dockerfile
+├── docker-compose.yml
+├── Makefile
+├── pupervisor.yaml              # Process configuration
 └── README.md
 ```
 
-## API
+## Development
 
-### Процессы
+```bash
+# Run in development mode
+make run-dev
 
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| GET | `/api/processes` | Список всех процессов |
-| GET | `/api/processes/{name}` | Информация о процессе |
-| POST | `/api/processes/{name}/start` | Запустить процесс |
-| POST | `/api/processes/{name}/stop` | Остановить процесс |
-| POST | `/api/processes/{name}/restart` | Перезапустить процесс |
-| GET | `/api/processes/{name}/output` | Stdout/stderr процесса |
+# Run tests
+make test
 
-### Логи
+# Run linter
+make lint
 
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| GET | `/api/logs` | Все логи |
-| GET | `/api/logs/worker` | Worker логи |
-| GET | `/api/logs/system` | Системные логи |
+# Build for all platforms
+make build-all
 
-### Система
+# See all available commands
+make help
+```
 
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| GET | `/api/health` | Health check |
-| GET | `/api/settings` | Текущие настройки |
-| POST | `/api/settings` | Обновить настройки |
+## Contributing
 
-## Веб-интерфейс
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-### Dashboard
-- Статистика: общее количество процессов, запущенные, остановленные
-- Donut-график распределения статусов
-- Line-график активности за последний час
-- Список последних событий
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-### Processes
-- Таблица всех процессов с действиями
-- Поиск по имени
-- Фильтрация по статусу (Running/Stopped)
-- Просмотр stdout/stderr в модальном окне
+## License
 
-### Logs
-- Worker логи с фильтрацией по уровню (Info/Warning/Error)
-- Системные логи
-- Объединенный просмотр всех логов
-- Автообновление каждые 10 секунд
+MIT License - see [LICENSE](LICENSE) for details.
 
-### Settings
-- Конфигурация автозапуска
-- Интервал проверки состояния
-- Лимиты ресурсов
+## Acknowledgments
 
-## Лицензия
-
-MIT
+Inspired by [Supervisor](http://supervisord.org/) - the original process control system.

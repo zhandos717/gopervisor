@@ -1,0 +1,50 @@
+# Pupervisor Configuration for Docker
+# Copy this file and modify for your needs
+
+processes:
+  # Example: Simple long-running process
+  - name: example-worker
+    command: /bin/sh
+    args:
+      - -c
+      - "while true; do echo 'Worker running...'; sleep 10; done"
+    autostart: true
+    autorestart: true
+    startsecs: 2
+    stopsignal: SIGTERM
+    stoptimeout: 10
+
+  # Example: PHP Laravel queue worker
+  # - name: laravel-queue
+  #   command: php
+  #   args:
+  #     - artisan
+  #     - queue:work
+  #     - --sleep=3
+  #     - --tries=3
+  #   directory: /var/www/app
+  #   environment:
+  #     APP_ENV: production
+  #   autostart: true
+  #   autorestart: true
+
+  # Example: Node.js process
+  # - name: node-app
+  #   command: node
+  #   args:
+  #     - /app/server.js
+  #   environment:
+  #     NODE_ENV: production
+  #     PORT: "3000"
+  #   autostart: true
+  #   autorestart: true
+
+  # Example: Python worker
+  # - name: python-worker
+  #   command: python
+  #   args:
+  #     - /app/worker.py
+  #   environment:
+  #     PYTHONUNBUFFERED: "1"
+  #   autostart: true
+  #   autorestart: true

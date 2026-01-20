@@ -69,12 +69,17 @@
                             <svg class="icon" viewBox="0 0 24 24" fill="var(--color-primary)"><path d="M20 19.59V8l-6-6H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c.45 0 .85-.15 1.19-.4l-4.43-4.43c-.8.52-1.74.83-2.76.83-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5c0 1.02-.31 1.96-.83 2.75L20 19.59zM9 13c0 1.66 1.34 3 3 3s3-1.34 3-3-1.34-3-3-3-3 1.34-3 3z"/></svg>
                             Worker Logs
                         </h2>
-                        <select id="log-level-filter" class="form-select" style="width: auto; padding: 6px 12px; font-size: 13px;">
-                            <option value="all">All Levels</option>
-                            <option value="info">Info</option>
-                            <option value="warning">Warning</option>
-                            <option value="error">Error</option>
-                        </select>
+                        <div class="flex items-center gap-4" style="flex-wrap: wrap;">
+                            <select id="worker-filter" class="form-select" style="width: auto; padding: 6px 12px; font-size: 13px;">
+                                <option value="all">All Workers</option>
+                            </select>
+                            <select id="log-level-filter" class="form-select" style="width: auto; padding: 6px 12px; font-size: 13px;">
+                                <option value="all">All Levels</option>
+                                <option value="info">Info</option>
+                                <option value="warning">Warning</option>
+                                <option value="error">Error</option>
+                            </select>
+                        </div>
                     </div>
                     <div id="worker-logs-container" class="log-container" style="max-height: 384px;">
                         <div class="empty-state">
@@ -133,28 +138,88 @@ const API = {
     async getSystemLogs() {
         const res = await fetch('/api/logs/system');
         return res.ok ? res.json() : [];
+    },
+    async getProcesses() {
+        const res = await fetch('/api/processes');
+        return res.ok ? res.json() : [];
     }
 };
 
 let allWorkerLogs = [];
+let allLogs = [];
 
-function renderLogEntry(log) {
+// Generate a consistent color for worker name
+function getWorkerColor(workerName) {
+    const colors = [
+        { bg: '#dbeafe', text: '#1e40af' },  // blue
+        { bg: '#dcfce7', text: '#166534' },  // green
+        { bg: '#fef3c7', text: '#92400e' },  // amber
+        { bg: '#fce7f3', text: '#9d174d' },  // pink
+        { bg: '#e0e7ff', text: '#3730a3' },  // indigo
+        { bg: '#ccfbf1', text: '#115e59' },  // teal
+        { bg: '#fee2e2', text: '#991b1b' },  // red
+        { bg: '#f3e8ff', text: '#6b21a8' },  // purple
+    ];
+    let hash = 0;
+    for (let i = 0; i < workerName.length; i++) {
+        hash = workerName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+}
+
+function formatTime(timestamp) {
+    if (!timestamp) return '';
+    // Extract time part from ISO string or return as is
+    const timePart = timestamp.split('T')[1];
+    if (timePart) {
+        return timePart.split('.')[0]; // Remove milliseconds
+    }
+    return timestamp;
+}
+
+function renderLogEntry(log, showWorker = true) {
     const level = (log.level || 'info').toLowerCase();
     const levelClass = level === 'error' ? 'error' : level === 'warning' ? 'warning' : 'info';
+    const workerColor = log.worker ? getWorkerColor(log.worker) : null;
+
     return `
         <div class="log-entry ${levelClass}">
-            <span class="log-time">[${log.timestamp}]</span>
-            <span class="log-level ${levelClass}">${log.level.toUpperCase()}</span>
-            <span class="log-message">${log.message}</span>
-            ${log.worker ? `<span class="text-muted" style="font-size: 11px; display: block; margin-top: 4px;">Worker: ${log.worker}</span>` : ''}
+            <div class="log-entry-header">
+                <span class="log-time">[${formatTime(log.timestamp)}]</span>
+                ${showWorker && log.worker ? `<span class="log-worker-badge" style="background: ${workerColor.bg}; color: ${workerColor.text}">${log.worker}</span>` : ''}
+                <span class="log-level-badge ${levelClass}">${log.level.toUpperCase()}</span>
+            </div>
+            <div class="log-message">${escapeHtml(log.message)}</div>
         </div>
     `;
 }
 
-function renderLogs(container, logs) {
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function renderLogs(container, logs, showWorker = true) {
     container.innerHTML = logs.length
-        ? logs.slice().reverse().map(renderLogEntry).join('')
+        ? logs.slice().reverse().map(log => renderLogEntry(log, showWorker)).join('')
         : '<div class="empty-state"><p>No logs available</p></div>';
+}
+
+function updateWorkerFilter() {
+    const select = document.getElementById('worker-filter');
+    const currentValue = select.value;
+
+    // Get unique worker names
+    const workers = [...new Set(allWorkerLogs.map(log => log.worker).filter(Boolean))].sort();
+
+    select.innerHTML = '<option value="all">All Workers</option>' +
+        workers.map(w => `<option value="${w}">${w}</option>`).join('');
+
+    // Restore selection if still valid
+    if (workers.includes(currentValue)) {
+        select.value = currentValue;
+    }
 }
 
 async function loadLogs() {
@@ -165,25 +230,34 @@ async function loadLogs() {
     ]);
 
     allWorkerLogs = workerLogs;
+    allLogs = logs;
 
-    renderLogs(document.getElementById('all-logs-container'), logs);
+    updateWorkerFilter();
+    renderLogs(document.getElementById('all-logs-container'), logs, true);
     applyWorkerFilter();
-    renderLogs(document.getElementById('system-logs-container'), systemLogs);
+    renderLogs(document.getElementById('system-logs-container'), systemLogs, false);
 }
 
 function applyWorkerFilter() {
+    const workerFilter = document.getElementById('worker-filter').value;
     const levelFilter = document.getElementById('log-level-filter').value;
     let filtered = allWorkerLogs;
+
+    if (workerFilter !== 'all') {
+        filtered = filtered.filter(log => log.worker === workerFilter);
+    }
 
     if (levelFilter !== 'all') {
         filtered = filtered.filter(log => log.level.toLowerCase() === levelFilter);
     }
 
-    renderLogs(document.getElementById('worker-logs-container'), filtered);
+    // Don't show worker badge if filtering by specific worker
+    renderLogs(document.getElementById('worker-logs-container'), filtered, workerFilter === 'all');
 }
 
 document.getElementById('refresh-btn').addEventListener('click', loadLogs);
 document.getElementById('log-level-filter').addEventListener('change', applyWorkerFilter);
+document.getElementById('worker-filter').addEventListener('change', applyWorkerFilter);
 document.addEventListener('DOMContentLoaded', loadLogs);
 
 // Auto-refresh every 10 seconds
